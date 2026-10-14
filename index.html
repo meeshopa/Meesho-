@@ -215,6 +215,17 @@
         .cat-item { cursor: pointer; }
         .cat-item.active { color: #9f2089; font-weight: 600; }
         .cat-item.active .cat-circle { border: 2px solid #9f2089; background-color: #f3d3ee; }
+
+        /* ===== Deal timer (cards) ===== */
+        .deal-timer-container { display: flex; flex-direction: column; align-items: flex-start; gap: 4px; margin-bottom: 4px; font-size: 10.5px; font-weight: 600; color: #b71c1c; line-height: 1.2; }
+        .deal-badge { background: linear-gradient(135deg, #e53935 0%, #ff5722 100%); color: #fff; padding: 3px 7px; border-radius: 5px; font-weight: 800; font-size: 11.5px; letter-spacing: 0.2px; text-shadow: 0 1px 1px rgba(0,0,0,0.25); display: inline-flex; align-items: center; gap: 3px; white-space: nowrap; max-width: 100%; transform-origin: left center; animation: dealPulse 1.2s ease-in-out infinite; will-change: transform; }
+        @keyframes dealPulse {
+            0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(229,57,53,0.5); }
+            50%  { transform: scale(1.05); box-shadow: 0 0 0 5px rgba(229,57,53,0); }
+            100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(229,57,53,0); }
+        }
+        @media (max-width: 360px) { .deal-timer-container { font-size: 9.5px; } .deal-badge { font-size: 10.5px; padding: 2px 5px; } }
+        @media (prefers-reduced-motion: reduce) { .deal-badge { animation: none; } }
     </style>
 </head>
 <body>
@@ -304,18 +315,32 @@
 
         let allProducts = {};
 
+        // ---- Deal countdown (30 min, shared by all cards) ----
+        let totalSeconds = 30 * 60;
+        function formatCountdown() {
+            const h = Math.floor(totalSeconds / 3600), m = Math.floor((totalSeconds % 3600) / 60), sec = totalSeconds % 60;
+            const p = n => (n < 10 ? '0' + n : '' + n);
+            return `${p(h)}h : ${p(m)}m : ${p(sec)}s`;
+        }
+        setInterval(() => {
+            if (totalSeconds > 0) totalSeconds--;
+            const txt = formatCountdown();
+            document.querySelectorAll('.cd-sync').forEach(el => { el.textContent = txt; });
+        }, 1000);
+
         // ---- Wishlist (localStorage: meeshoWishlist = [ids]) ----
         const WISH_KEY = 'meeshoWishlist';
         function loadWishlist() { try { const w = JSON.parse(localStorage.getItem(WISH_KEY)); return Array.isArray(w) ? w.map(String) : []; } catch (e) { return []; } }
         function saveWishlist(w) { try { localStorage.setItem(WISH_KEY, JSON.stringify(w)); } catch (e) { console.error(e); } }
 
         function buildCard(product) {
-            const liked = loadWishlist().includes(String(product.id));
+            const pid = String(product._key != null ? product._key : product.id);
+            const liked = loadWishlist().includes(pid);
             // अगर प्रोडक्ट में इमेज है, तो पहली इमेज लें, वरना खाली रखें
             let imgUrl = (product.images && product.images.length > 0) ? getDirectImageUrl(product.images[0]) : '';
             return `
-                        <a href="product.html?id=${product.id}" class="product-card">
-                            <span class="wl-btn ${liked ? 'liked' : ''}" data-id="${product.id}" onclick="toggleWishlist(event, this)"><svg width="18" height="18" viewBox="0 0 24 24" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></span>
+                        <a href="product.html?id=${encodeURIComponent(pid)}" class="product-card">
+                            <span class="wl-btn ${liked ? 'liked' : ''}" data-id="${pid}" onclick="toggleWishlist(event, this)"><svg width="18" height="18" viewBox="0 0 24 24" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></span>
                             <img src="${imgUrl}" alt="${product.name}" onerror="this.src='https://via.placeholder.com/200?text=No+Image'">
                             <div class="pc-details">
                                 <div class="pc-title">${product.name}</div>
@@ -324,7 +349,10 @@
                                     <span class="pc-mrp">₹${product.mrp}</span>
                                     <span class="pc-discount">${product.discount}% छूट</span>
                                 </div>
-                                <div class="pc-cod">₹${product.codPrice} with COD</div>
+                                <div class="deal-timer-container">
+                                    <span class="deal-text">Deal खत्म होने में बचे हैं सिर्फ</span>
+                                    <span class="deal-badge">💣 <span class="cd-sync">${formatCountdown()}</span></span>
+                                </div>
                             </div>
                         </a>
                     `;
@@ -342,21 +370,30 @@
             });
             if (document.getElementById('wishlistPanel').style.display === 'block') renderWishlist();
         }
+        function findProductById(id) {
+            id = String(id);
+            if (allProducts[id]) return allProducts[id];
+            for (const k in allProducts) { const p = allProducts[k]; if (p && (String(p._key) === id || String(p.id) === id)) return p; }
+            return null;
+        }
         function renderWishlist() {
             const grid = document.getElementById('wishlistGrid');
             const ids = loadWishlist();
+            const loaded = Object.keys(allProducts).length > 0;
+            if (ids.length === 0) {
+                grid.innerHTML = '<div class="cart-empty" style="grid-column: span 2;">अभी कोई प्रोडक्ट लाइक नहीं किया गया है।</div>';
+                return;
+            }
+            if (!loaded) {
+                grid.innerHTML = '<div class="cart-empty" style="grid-column: span 2;">प्रोडक्ट्स लोड हो रहे हैं...</div>';
+                return;
+            }
             let html = '', n = 0;
             ids.forEach(id => {
                 const p = findProductById(id);
                 if (p) { html += buildCard(p); n++; }
             });
-            if (n === 0) {
-                grid.innerHTML = '<div class="cart-empty" style="grid-column: span 2;">' + (Object.keys(allProducts).length || ids.length === 0 ? 'अभी कोई प्रोडक्ट लाइक नहीं किया गया है।' : 'प्रोडक्ट्स लोड हो रहे हैं...') + '</div>';
-            } else { grid.innerHTML = html; }
-        }
-        function findProductById(id) {
-            for (const k in allProducts) { const p = allProducts[k]; if (p && String(p.id) === String(id)) return p; }
-            return null;
+            grid.innerHTML = n ? html : '<div class="cart-empty" style="grid-column: span 2;">लाइक किए गए प्रोडक्ट अब उपलब्ध नहीं हैं।</div>';
         }
         function openWishlist() { renderWishlist(); document.getElementById('wishlistPanel').style.display = 'block'; }
         function closeWishlist() { document.getElementById('wishlistPanel').style.display = 'none'; }
@@ -454,6 +491,7 @@
             grid.innerHTML = ''; // लोडिंग टेक्स्ट हटाना
 
             if (data) {
+                for (const k in data) { if (data[k] && typeof data[k] === 'object') { data[k]._key = k; } }
                 allProducts = data;
                 applyFilters();
                 if (document.getElementById('wishlistPanel').style.display === 'block') renderWishlist();
