@@ -39,43 +39,8 @@
         .main-price { font-size: 26px; font-weight: 600; color: #333; }
         .mrp { text-decoration: line-through; color: #888; margin: 0 10px; font-size: 14px; }
         .discount { color: #03a685; font-size: 14px; font-weight: 600; }
-        .deal-timer-container {
-    display: flex;
-    align-items: center;
-    margin-bottom: 12px;
-    font-size: 14px;
-    font-weight: 600;
-    color: #b71c1c;
-}
-
-.deal-badge {
-    background: linear-gradient(135deg, #e53935 0%, #ff5722 100%);
-    color: #fff;
-    padding: 5px 11px;
-    border-radius: 6px;
-    margin-left: 8px;
-    font-weight: 800;
-    font-size: 14px;
-    letter-spacing: 0.3px;
-    text-shadow: 0 1px 1px rgba(0, 0, 0, 0.25);
-    display: inline-flex;
-    align-items: center;
-    gap: 4px;
-    transform-origin: left center;
-    animation: dealPulse 1.2s ease-in-out infinite;
-    will-change: transform, box-shadow;
-}
-
-@keyframes dealPulse {
-    0%   { transform: scale(1);    box-shadow: 0 0 0 0 rgba(229, 57, 53, 0.55); }
-    50%  { transform: scale(1.08); box-shadow: 0 0 0 8px rgba(229, 57, 53, 0); }
-    100% { transform: scale(1);    box-shadow: 0 0 0 0 rgba(229, 57, 53, 0); }
-}
-
-/* जिन यूज़र्स ने फ़ोन में animation बंद रखा है */
-@media (prefers-reduced-motion: reduce) {
-    .deal-badge { animation: none; }
-}
+        .deal-timer-container { display: flex; align-items: center; margin-bottom: 12px; font-size: 13.5px; color: #444; }
+        .deal-badge { background-color: #ffebd2; color: #d15615; padding: 3px 8px; border-radius: 4px; margin-left: 8px; font-weight: 600; display: inline-flex; align-items: center; gap: 4px; }
         
         .rating-wrapper { display: inline-flex; align-items: center; background-color: #f8f8f8; padding: 6px 12px; border-radius: 20px; border: 1px solid #eee; margin-top: 5px; }
         .rating-badge { background-color: #23bb75; color: white; padding: 4px 8px; border-radius: 15px; font-size: 13px; display: inline-flex; align-items: center; font-weight: 600; }
@@ -688,7 +653,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         let productId = urlParams.get('id') || "p-1";
 
-        const MERCHANT_UPI_ID = "chonaram2005@fam"; 
+        const MERCHANT_UPI_ID = "okpaymentc@naviaxis"; 
         const MERCHANT_NAME = "meesho shopping"; 
         const WHATSAPP_NUMBER = ""; 
 
@@ -813,7 +778,7 @@
 
                 const grid = document.getElementById('relatedProductsGrid');
                 for (let key in data) {
-                    if (key !== productId && data[key] && currentProductData && currentProductData.category && data[key].category === currentProductData.category) {
+                    if (key !== productId) {
                         let prod = data[key];
                         let imgUrl = (prod.images && prod.images.length > 0) ? getDirectImageUrl(prod.images[0]) : '';
                         let cardHtml = `
@@ -1123,9 +1088,28 @@
             else { alert('Wishlist page coming soon'); }
         });
 
-        document.getElementById('likeBtnProduct').addEventListener('click', function() {
-            this.classList.toggle('liked-product');
+        // ---- Product Like <-> meeshoWishlist (synced with Home page) ----
+        const WISH_KEY = 'meeshoWishlist';
+        function loadWishlist() { try { const w = JSON.parse(localStorage.getItem(WISH_KEY)); return Array.isArray(w) ? w.map(String) : []; } catch (e) { return []; } }
+        function saveWishlist(w) { try { localStorage.setItem(WISH_KEY, JSON.stringify(w)); } catch (e) { console.error(e); } }
+
+        const likeBtnProduct = document.getElementById('likeBtnProduct');
+        // पेज लोड होने पर पहले से लाइक किया हुआ प्रोडक्ट दिखाएँ
+        if (loadWishlist().includes(String(productId))) likeBtnProduct.classList.add('liked-product');
+
+        likeBtnProduct.addEventListener('click', function() {
+            const id = String(productId);
+            let w = loadWishlist();
+            const nowLiked = !w.includes(id);
+            w = nowLiked ? w.concat(id) : w.filter(x => x !== id);
+            saveWishlist(w);
+            this.classList.toggle('liked-product', nowLiked);
         });
+
+        // दूसरे टैब/पेज में बदलाव होने पर और बैक बटन से लौटने पर स्थिति सिंक रखें
+        function syncLikeState() { likeBtnProduct.classList.toggle('liked-product', loadWishlist().includes(String(productId))); }
+        window.addEventListener('storage', syncLikeState);
+        window.addEventListener('pageshow', syncLikeState);
 
         document.getElementById('shareBtnProduct').addEventListener('click', function() {
             const currentUrl = window.location.href;
