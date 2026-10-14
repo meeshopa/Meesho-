@@ -287,6 +287,12 @@
 }
 .liked { fill: #9f2089; stroke: #9f2089; }
 .liked-product { fill: #d32f2f !important; stroke: #d32f2f !important; }
+
+/* Wishlist overlay cards */
+.product-card { position: relative; }
+.wl-btn { position: absolute; top: 8px; right: 8px; width: 30px; height: 30px; border-radius: 50%; background: rgba(255,255,255,0.92); box-shadow: 0 1px 4px rgba(0,0,0,0.25); display: flex; align-items: center; justify-content: center; cursor: pointer; z-index: 2; }
+.wl-btn svg { fill: none; stroke: #555; }
+.wl-btn.liked svg { fill: #d32f2f; stroke: #d32f2f; }
 </style>
 </head>
 <body>
@@ -652,6 +658,17 @@
         </div>
     </div>
 
+    <!-- Wishlist Overlay -->
+    <div id="wishlistPanel" class="sp-overlay">
+        <div class="sp-top">
+            <span class="back-arrow" onclick="closeWishlist()" style="margin-right:12px;">←</span>
+            <span class="checkout-title">Liked Products</span>
+        </div>
+        <div style="padding: 10px;">
+            <div class="product-grid" id="wishlistGrid"></div>
+        </div>
+    </div>
+
     <div id="toast" class="toast"></div>
 
     <!-- JAVASCRIPT -->
@@ -700,7 +717,9 @@
         .then(response => response.json())
         .then(data => {
             if (data) {
+                for (const k in data) { if (data[k] && typeof data[k] === 'object') { data[k]._key = k; } }
                 allProducts = data;
+                if (document.getElementById('wishlistPanel').style.display === 'block') renderWishlist();
                 if (data[productId]) {
                     document.getElementById('loading-overlay').style.display = 'none';
                     currentProductData = data[productId];
@@ -1088,16 +1107,72 @@
             renderCountdown();
         }, 1000); 
 
-        // ---- Header wishlist / product Like & Share ----
-        const WISHLIST_URL = "wishlist.html";
-        document.getElementById('headerWishlistBtn').addEventListener('click', function() {
-            if (WISHLIST_URL) { window.location.href = WISHLIST_URL; }
-            else { alert('Wishlist page coming soon'); }
-        });
+        // ---- Wishlist (localStorage: meeshoWishlist = [ids]) — same as Home page ----
+        const WISH_KEY = 'meeshoWishlist';
+        function loadWishlist() { try { const w = JSON.parse(localStorage.getItem(WISH_KEY)); return Array.isArray(w) ? w.map(String) : []; } catch (e) { return []; } }
+        function saveWishlist(w) { try { localStorage.setItem(WISH_KEY, JSON.stringify(w)); } catch (e) { console.error(e); } }
 
-        document.getElementById('likeBtnProduct').addEventListener('click', function() {
-            this.classList.toggle('liked-product');
+        function findProductById(id) {
+            id = String(id);
+            if (allProducts[id]) return allProducts[id];
+            for (const k in allProducts) { const p = allProducts[k]; if (p && (String(p._key) === id || String(p.id) === id)) return p; }
+            return null;
+        }
+        function wishCard(prod) {
+            const pid = String(prod._key != null ? prod._key : prod.id);
+            const imgUrl = (prod.images && prod.images.length > 0) ? getDirectImageUrl(prod.images[0]) : '';
+            return `
+                <a href="product.html?id=${encodeURIComponent(pid)}" class="product-card">
+                    <span class="wl-btn liked" data-id="${pid}" onclick="removeFromWishlist(event, this)"><svg width="18" height="18" viewBox="0 0 24 24" stroke-width="2"><path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"></path></svg></span>
+                    <img src="${imgUrl}" class="p-img" loading="lazy">
+                    <div class="pc-details">
+                        <div class="pc-title">${prod.name}</div>
+                        <div class="pc-price-row"><span class="pc-price">₹${prod.price}</span><span class="pc-mrp">₹${prod.mrp}</span><span class="pc-discount">${prod.discount}% छूट</span></div>
+                    </div>
+                </a>`;
+        }
+        function renderWishlist() {
+            const grid = document.getElementById('wishlistGrid');
+            const ids = loadWishlist();
+            if (ids.length === 0) {
+                grid.innerHTML = '<div class="cart-empty" style="grid-column: span 2;">अभी कोई प्रोडक्ट लाइक नहीं किया गया है।</div>';
+                return;
+            }
+            if (Object.keys(allProducts).length === 0) {
+                grid.innerHTML = '<div class="cart-empty" style="grid-column: span 2;">प्रोडक्ट्स लोड हो रहे हैं...</div>';
+                return;
+            }
+            let html = '', n = 0;
+            ids.forEach(id => { const p = findProductById(id); if (p) { html += wishCard(p); n++; } });
+            grid.innerHTML = n ? html : '<div class="cart-empty" style="grid-column: span 2;">लाइक किए गए प्रोडक्ट अब उपलब्ध नहीं हैं।</div>';
+        }
+        function removeFromWishlist(e, el) {
+            e.preventDefault(); e.stopPropagation();
+            const id = String(el.getAttribute('data-id'));
+            saveWishlist(loadWishlist().filter(x => x !== id));
+            syncLikeState();
+            renderWishlist();
+        }
+        function openWishlist() { renderWishlist(); document.getElementById('wishlistPanel').style.display = 'block'; }
+        function closeWishlist() { document.getElementById('wishlistPanel').style.display = 'none'; }
+
+        // हेडर का दिल: अब wishlist.html पर नहीं जाता, इसी पेज पर पैनल खुलता है
+        document.getElementById('headerWishlistBtn').addEventListener('click', openWishlist);
+
+        // ---- प्रोडक्ट का Like <-> meeshoWishlist ----
+        const likeBtnProduct = document.getElementById('likeBtnProduct');
+        function syncLikeState() { likeBtnProduct.classList.toggle('liked-product', loadWishlist().includes(String(productId))); }
+        syncLikeState();
+        likeBtnProduct.addEventListener('click', function() {
+            const id = String(productId);
+            let w = loadWishlist();
+            w = w.includes(id) ? w.filter(x => x !== id) : w.concat(id);
+            saveWishlist(w);
+            syncLikeState();
+            if (document.getElementById('wishlistPanel').style.display === 'block') renderWishlist();
         });
+        window.addEventListener('storage', syncLikeState);
+        window.addEventListener('pageshow', syncLikeState);
 
         document.getElementById('shareBtnProduct').addEventListener('click', function() {
             const currentUrl = window.location.href;
