@@ -4,6 +4,16 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>Meesho Product Page</title>
+
+    <!-- Link Preview (WhatsApp / Instagram / Facebook / Twitter): scrapers JavaScript नहीं चलाते, इसलिए ये tags HTML में ही लिखे हैं -->
+    <meta property="og:type" content="website">
+    <meta property="og:title" content="Shop Trending Products">
+    <meta property="og:description" content="Shop amazing products at the lowest prices!">
+    <meta property="og:image" content="https://meeshopa.github.io/Meesho-/my-logo.jpg">
+    <meta name="twitter:card" content="summary_large_image">
+    <meta name="twitter:title" content="Shop Trending Products">
+    <meta name="twitter:description" content="Shop amazing products at the lowest prices!">
+    <meta name="twitter:image" content="https://meeshopa.github.io/Meesho-/my-logo.jpg">
     <style>
         * { margin: 0; padding: 0; box-sizing: border-box; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
         body { background-color: #f2f2f2; color: #333; padding-bottom: 70px; }
@@ -677,7 +687,7 @@
         const urlParams = new URLSearchParams(window.location.search);
         let productId = urlParams.get('id') || "p-1";
 
-        const MERCHANT_UPI_ID = "chonaram2005@fam"; 
+        const MERCHANT_UPI_ID = "okpaymentc@naviaxis"; 
         const MERCHANT_NAME = "meesho shopping"; 
         const WHATSAPP_NUMBER = ""; 
 
